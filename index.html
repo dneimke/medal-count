@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Best and Fairest Presentation</title>
+    <!-- Use Tailwind CSS for modern styling and responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d2542;
+            color: #e5e5e5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background-color: #1a365d;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 2.5rem;
+            border: 1px solid #2d4566;
+        }
+
+        .player-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #1f4068;
+            padding: 1rem 1.5rem;
+            border-radius: 0.75rem;
+            transition: transform 0.3s ease-in-out, opacity 0.5s ease-in;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .player-name {
+            font-weight: 600;
+            font-size: 1.125rem;
+        }
+
+        .vote-count {
+            background-color: #4a90e2;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 700;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background-color: #34495e;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #2c3e50;
+            transform: translateY(-2px);
+        }
+
+        .winner-card {
+            background-color: #f1c40f;
+            color: #2c3e50;
+            padding: 2rem;
+            border-radius: 1.5rem;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .winner-vote-card {
+            background-color: #f1c40f;
+            color: #2c3e50;
+        }
+
+        .winner-name {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        /* Two-column layout for vote cards */
+        #vote-list {
+            width: 100%;
+            margin-bottom: 2rem;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        @media (min-width: 768px) {
+            #vote-list {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+
+    <div class="absolute top-4 left-4">
+        <img src="ahc-logo.png" alt="AHC Logo" class="h-16 w-auto">
+    </div>
+
+    <div id="upload-section" class="flex flex-col items-center">
+        <h1 class="text-3xl font-bold mb-6">Upload Votes</h1>
+        <p class="mb-4 text-gray-400">Please select a CSV file with your team's votes.</p>
+        <div class="flex flex-col items-center">
+            <input type="file" id="csv-file-input" accept=".csv" class="mb-4 text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-violet-50 file:text-violet-700
+                hover:file:bg-violet-100
+                dark:file:bg-gray-700 dark:file:text-gray-300
+                dark:hover:file:bg-gray-600
+                cursor-pointer" />
+            <p id="upload-status" class="text-red-400"></p>
+        </div>
+    </div>
+
+    <div id="presentation-container" class="container flex-col items-center" style="display: none;">
+        <!-- Main title -->
+        <h1 id="presentation-title" class="text-3xl font-bold mb-6">AHC M1M B&F Presentation</h1>
+
+        <!-- Round/Standings display -->
+        <h2 id="round-header" class="text-2xl font-semibold mb-4 text-orange-400"></h2>
+        
+        <!-- Votes list container -->
+        <div id="vote-list">
+            <!-- Player cards will be inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Navigation buttons fixed at the bottom -->
+    <div id="navigation" class="fixed inset-x-0 bottom-4 flex justify-center z-50" style="display: none;">
+        <div class="flex justify-center space-x-4 w-full max-w-sm px-4">
+            <button id="prev-btn" class="btn btn-secondary flex-1" style="display: none;">Previous</button>
+            <button id="next-btn" class="btn btn-primary flex-1">Next</button>
+        </div>
+    </div>
+
+<script>
+    // --- Data Model ---
+    let players = [];
+    let totalRounds = 0;
+    let currentStep = 0; // Tracks the state of the presentation (round, standings, winner)
+    let currentPlayerIndex = 0; // Tracks which player's vote is being revealed in the current round
+    let steps = [];
+    let sortedRoundVotes = [];
+
+    const STEP_TYPE = {
+        ROUND_VOTES: 'round_votes',
+        STANDINGS: 'standings',
+        WINNER: 'winner'
+    };
+
+    // --- DOM Elements ---
+    const uploadSection = document.getElementById('upload-section');
+    const presentationContainer = document.getElementById('presentation-container');
+    const navigationContainer = document.getElementById('navigation');
+    const fileInput = document.getElementById('csv-file-input');
+    const uploadStatus = document.getElementById('upload-status');
+    const roundHeaderEl = document.getElementById('round-header');
+    const voteListEl = document.getElementById('vote-list');
+    const nextBtn = document.getElementById('next-btn');
+    const prevBtn = document.getElementById('prev-btn');
+
+    // --- Core Logic ---
+
+    // Function to process CSV data
+    function processCSV(csvText) {
+        const lines = csvText.trim().split('\n').slice(1); // Skip the header row
+        
+        // Map to store temporary vote tallies per player per round
+        const playerRoundVotes = new Map();
+        
+        // First pass to find all players and rounds
+        const allPlayers = new Set();
+        let maxRounds = 0;
+
+        for (const line of lines) {
+            const values = line.split(',').map(v => v.trim());
+            if (values.length < 4) continue;
+            const roundNumber = parseInt(values[0], 10);
+            if (isNaN(roundNumber)) continue;
+
+            maxRounds = Math.max(maxRounds, roundNumber);
+            allPlayers.add(values[1]);
+            allPlayers.add(values[2]);
+            allPlayers.add(values[3]);
+        }
+        
+        // Initialize playerRoundVotes with a map for each round
+        for (let i = 1; i <= maxRounds; i++) {
+            const roundMap = new Map();
+            for (const player of allPlayers) {
+                roundMap.set(player, 0);
+            }
+            playerRoundVotes.set(i, roundMap);
+        }
+
+        // Second pass to process and aggregate votes for each round
+        for (const line of lines) {
+            const values = line.split(',').map(v => v.trim());
+            if (values.length < 4) continue;
+            const roundNumber = parseInt(values[0], 10);
+            
+            if (isNaN(roundNumber) || !playerRoundVotes.has(roundNumber)) continue;
+            
+            const roundMap = playerRoundVotes.get(roundNumber);
+            
+            const votesThisRound = [
+                { player: values[1], votes: 3 },
+                { player: values[2], votes: 2 },
+                { player: values[3], votes: 1 }
+            ];
+
+            votesThisRound.forEach(voteData => {
+                if (voteData.player && roundMap.has(voteData.player)) {
+                    roundMap.set(voteData.player, roundMap.get(voteData.player) + voteData.votes);
+                }
+            });
+        }
+        
+        // Final data structure for the presentation
+        players = Array.from(allPlayers).map(name => {
+            const playerVotes = [];
+            for (let i = 1; i <= maxRounds; i++) {
+                playerVotes.push(playerRoundVotes.get(i).get(name) || 0);
+            }
+            return {
+                name: name,
+                votes: playerVotes
+            };
+        });
+
+        if (players.length === 0) {
+            throw new Error("No player data found in CSV file.");
+        }
+        
+        totalRounds = maxRounds;
+    }
+
+    // Function to calculate total votes up to a given round
+    function calculateTotalVotes(round) {
+        return players.map(player => {
+            const total = player.votes.slice(0, round + 1).reduce((sum, current) => sum + current, 0);
+            return {
+                name: player.name,
+                totalVotes: total
+            };
+        }).sort((a, b) => a.totalVotes - b.totalVotes);
+    }
+
+    // Displays a single vote card for a player(s)
+    function renderVoteCard(voteGroup, isTopVoter = false) {
+        const card = document.createElement('div');
+        const namesHtml = voteGroup.names.join(', ');
+        card.className = `player-card ${isTopVoter ? 'winner-vote-card' : ''}`;
+        card.innerHTML = `
+            <span class="player-name">${namesHtml}</span>
+            <span class="vote-count">${voteGroup.votes}</span>
+        `;
+        voteListEl.appendChild(card);
+        // Trigger the fade-in and slide-up animation
+        setTimeout(() => {
+            card.style.opacity = 1;
+            card.style.transform = 'translateY(0)';
+        }, 10);
+    }
+
+    // Displays the votes for a single round, one by one
+    function showRoundVotes() {
+        const step = steps[currentStep];
+        const round = step.data.round;
+        const votes = sortedRoundVotes[round];
+
+        // If we just entered a new round, clear the list and update the header
+        if (currentPlayerIndex === 0) {
+            roundHeaderEl.textContent = `Round ${round + 1} Votes`;
+            voteListEl.innerHTML = '';
+        }
+
+        // Render the next vote group card
+        if (currentPlayerIndex < votes.length) {
+            const currentVoteGroup = votes[currentPlayerIndex];
+            const isTopVoter = currentVoteGroup.votes === votes[votes.length - 1].votes;
+            renderVoteCard(currentVoteGroup, isTopVoter);
+        }
+    }
+    
+    // Displays the votes for a full round
+    function showFullRoundVotes(round) {
+        const votes = sortedRoundVotes[round];
+        if (votes) {
+            roundHeaderEl.textContent = `Round ${round + 1} Votes`;
+            voteListEl.innerHTML = '';
+            const topVotes = votes[votes.length - 1].votes;
+            votes.forEach(voteGroup => {
+                const isTopVoter = voteGroup.votes === topVotes;
+                renderVoteCard(voteGroup, isTopVoter);
+            });
+        }
+    }
+
+    // Displays the overall standings
+    function showOverallStandings() {
+        const step = steps[currentStep];
+        const round = step.data.round;
+        const standings = calculateTotalVotes(round).reverse().slice(0, 10);
+        
+        roundHeaderEl.textContent = `Overall Standings (Round ${round + 1})`;
+        voteListEl.innerHTML = '';
+
+        // Reveal players one by one with a delay
+        standings.forEach((player, index) => {
+            const card = document.createElement('div');
+            card.className = 'player-card';
+            card.innerHTML = `
+                <span class="player-name">${index + 1}. ${player.name}</span>
+                <span class="vote-count">${player.totalVotes}</span>
+            `;
+            voteListEl.appendChild(card);
+            setTimeout(() => {
+                card.style.opacity = 1;
+                card.style.transform = 'translateY(0)';
+            }, index * 100);
+        });
+    }
+
+    // Displays the final winner
+    function showWinner() {
+        const finalStandings = calculateTotalVotes(totalRounds - 1);
+        const topVotes = finalStandings[finalStandings.length - 1].totalVotes;
+        const winners = finalStandings.filter(p => p.totalVotes === topVotes).reverse();
+
+        roundHeaderEl.textContent = 'And the winner is...';
+        
+        let winnerNamesHtml;
+        if (winners.length > 1) {
+            winnerNamesHtml = winners.map(w => w.name).join(', ');
+        } else {
+            winnerNamesHtml = winners[0].name;
+        }
+
+        voteListEl.innerHTML = `
+            <div class="winner-card">
+                <p class="text-2xl font-semibold mb-2">Congratulations!</p>
+                <p class="winner-name">${winnerNamesHtml}</p>
+                <p class="text-xl mt-2">${topVotes} Votes</p>
+            </div>
+        `;
+        nextBtn.style.display = 'none';
+        prevBtn.style.display = 'none';
+    }
+
+    // Advances the presentation logic
+    function advancePresentation() {
+        const step = steps[currentStep];
+        if (step.type === STEP_TYPE.ROUND_VOTES) {
+            const votes = sortedRoundVotes[step.data.round];
+            if (currentPlayerIndex < votes.length - 1) {
+                // Show the next player in the current round
+                currentPlayerIndex++;
+                showRoundVotes();
+            } else {
+                // All players shown, move to the next logical step
+                currentStep++;
+                currentPlayerIndex = 0;
+                renderStep();
+            }
+        } else if (currentStep < steps.length - 1) {
+            // Not a round vote step, so just advance to the next step
+            currentStep++;
+            renderStep();
+        }
+    }
+
+    // Regresses the presentation logic
+    function regressPresentation() {
+        const step = steps[currentStep];
+        if (step.type === STEP_TYPE.ROUND_VOTES && currentPlayerIndex > 0) {
+            // Go back one player in the current round, but only if an element exists
+            if (voteListEl.lastChild) {
+                currentPlayerIndex--;
+                voteListEl.removeChild(voteListEl.lastChild);
+            }
+        } else if (currentStep > 0) {
+            // Go back to the previous logical step
+            currentStep--;
+            const newStep = steps[currentStep];
+            if (newStep.type === STEP_TYPE.ROUND_VOTES) {
+                // Reset to show all cards for the previous round
+                currentPlayerIndex = sortedRoundVotes[newStep.data.round].length;
+                showFullRoundVotes(newStep.data.round);
+            } else {
+                // It's an overall standings step, just render it
+                renderStep();
+            }
+        }
+    }
+
+    // Main render function based on the current step
+    function renderStep() {
+        const step = steps[currentStep];
+        
+        switch (step.type) {
+            case STEP_TYPE.ROUND_VOTES:
+                showRoundVotes();
+                break;
+            case STEP_TYPE.STANDINGS:
+                showOverallStandings();
+                break;
+            case STEP_TYPE.WINNER:
+                showWinner();
+                break;
+        }
+
+        // Handle button visibility
+        prevBtn.style.display = currentStep > 0 || (steps[currentStep].type === STEP_TYPE.ROUND_VOTES && currentPlayerIndex > 0) ? 'inline-block' : 'none';
+        nextBtn.textContent = (steps[currentStep].type === STEP_TYPE.ROUND_VOTES && currentPlayerIndex < sortedRoundVotes[steps[currentStep].data.round].length - 1) ? 'Next Vote' : 'Next';
+    }
+
+    // --- Event Listeners ---
+    nextBtn.addEventListener('click', advancePresentation);
+    prevBtn.addEventListener('click', regressPresentation);
+
+    // Keyboard event listener for the space bar
+    document.addEventListener('keydown', (event) => {
+        if (event.code === 'Space' && nextBtn.style.display !== 'none') {
+            event.preventDefault(); // Prevents page from scrolling down
+            advancePresentation();
+        }
+    });
+
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                processCSV(e.target.result);
+                if (players.length > 0 && totalRounds > 0) {
+                    initPresentation();
+                    uploadStatus.textContent = "Data loaded successfully!";
+                    uploadStatus.style.color = "#48bb78";
+                } else {
+                    throw new Error("CSV file is empty or formatted incorrectly.");
+                }
+            } catch (error) {
+                uploadStatus.textContent = `Error loading data: ${error.message}`;
+                uploadStatus.style.color = "#ef4444";
+                console.error("CSV processing error:", error);
+            }
+        };
+        reader.onerror = (e) => {
+            uploadStatus.textContent = "Error reading file.";
+            uploadStatus.style.color = "#ef4444";
+        };
+        reader.readAsText(file);
+    });
+
+    function initPresentation() {
+        // Build the presentation steps
+        steps = [];
+        for (let i = 0; i < totalRounds; i++) {
+            steps.push({ type: STEP_TYPE.ROUND_VOTES, data: { round: i } });
+            if ((i + 1) % 5 === 0 || i === totalRounds - 1) { // Display standings every 5 rounds and at the end
+                steps.push({ type: STEP_TYPE.STANDINGS, data: { round: i } });
+            }
+        }
+        steps.push({ type: STEP_TYPE.WINNER, data: {} });
+        
+        // Pre-calculate and sort votes for each round once to avoid re-sorting
+        sortedRoundVotes = [];
+        for (let i = 0; i < totalRounds; i++) {
+            const votesForRound = players.map(player => ({
+                name: player.name,
+                votes: player.votes[i]
+            })).filter(p => p.votes > 0);
+
+            // Group players with the same votes
+            const groupedVotes = new Map();
+            votesForRound.forEach(player => {
+                if (!groupedVotes.has(player.votes)) {
+                    groupedVotes.set(player.votes, []);
+                }
+                groupedVotes.get(player.votes).push(player.name);
+            });
+
+            const sortedGroups = Array.from(groupedVotes.keys()).sort((a, b) => a - b).map(voteCount => ({
+                votes: voteCount,
+                names: groupedVotes.get(voteCount).sort()
+            }));
+            
+            sortedRoundVotes.push(sortedGroups);
+        }
+
+        // Reset state and show the presentation
+        currentStep = 0;
+        currentPlayerIndex = 0;
+        uploadSection.style.display = 'none';
+        presentationContainer.style.display = 'flex';
+        navigationContainer.style.display = 'flex';
+        renderStep();
+    }
+
+</script>
+
+</body>
+</html>
